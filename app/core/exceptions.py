@@ -1,11 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+
 class NotFoundError(Exception):
     pass
 
 
 class ConflictError(Exception):
     pass
+
 
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(NotFoundError)

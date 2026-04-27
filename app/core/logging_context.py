@@ -43,6 +43,4 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
             status_code=response.status_code,
             duration_ms=duration_ms,
         )
-
         return response
-    

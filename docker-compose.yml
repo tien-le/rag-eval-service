@@ -1,0 +1,175 @@
+# Load environment variables from config file based on APP_ENV
+# Note: This requires APP_ENV to be set before running docker-compose
+# Usage: APP_ENV=prod docker-compose --env-file configs/prod.env up -d
+# Or: export $(cat configs/prod.env | xargs) && docker-compose up -d
+
+services:
+  # PostgreSQL Database
+  pg:
+    image: postgres:18-alpine
+    platform: linux/amd64
+    container_name: rag-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRESQL_DATABASE:-db_rag_eval}
+      POSTGRES_USER: ${POSTGRESQL_USERNAME:-admin}
+      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-admin}
+    ports:
+      - "${POSTGRESQL_PORT:-5432}:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRESQL_USERNAME:-admin} -d ${POSTGRESQL_DATABASE:-db_rag_eval} -h localhost -p 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fastapi-pgadmin
+    ports:
+      - "8090:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${POSTGRESQL_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"  # for local dev, to avoid CSRF issues
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      pg:
+        condition: service_healthy
+    networks:
+      - backend
+
+  # MongoDB for document storage
+  # mongodb:
+  #   image: mongo:7
+  #   container_name: fastapi-mongodb
+  #   ports:
+  #     - "${MONGODB_PORT:-27017}:27017"
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
+  #     MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-admin}
+  #     MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-fastapi_db}
+  #   volumes:
+  #     - mongo-data:/data/db
+  #   networks:
+  #     - backend
+  #   healthcheck:
+  #     test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rag-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and task queues
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # RAG Evaluation Service Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-backend
+    environment:
+      # Set APP_ENV to determine which config file to load from configs/ folder
+      # Options: dev, staging, production/prod, test
+      APP_ENV: ${APP_ENV:-dev}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - .:/app
+      # Mount configs folder so application can read config files
+      - ./configs:/app/configs:ro
+    depends_on:
+      pg:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  # Alembic Migration Service
+  alembic:
+    image: python:3.12-slim
+    container_name: rag-alembic
+    working_dir: /app
+    volumes:
+      - .:/app
+      # Mount configs folder so Alembic can read config files
+      - ./configs:/app/configs:ro
+    depends_on:
+      pg:
+        condition: service_healthy
+    environment:
+      # Set APP_ENV to determine which config file to load from configs/ folder
+      APP_ENV: ${APP_ENV:-dev}
+    networks:
+      - backend
+    command: >
+      bash -c "
+      pip install -q --no-cache-dir -r requirements.txt &&
+      until pg_isready -h pg -p 5432 -U ${POSTGRESQL_USERNAME:-postgres}; do
+        echo 'Waiting for PostgreSQL...' && sleep 1;
+      done &&
+      python -m alembic upgrade head
+      "
+
+volumes:
+  pg-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+  # mongo-data:
+  #   driver: local
+  qdrant-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge

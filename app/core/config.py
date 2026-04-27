@@ -20,6 +20,7 @@ class Environment(str, Enum):
 
 class DatabaseProvider(str, Enum):
     """Database provider options."""
+
     POSTGRESQL = "postgresql"
     SUPABASE = "supabase"
     SQLITE = "sqlite"
@@ -60,6 +61,9 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "RAG Evaluation Service"
     VERSION: str = "1.0.0"
+    DESCRIPTION: str = (
+        "A service for evaluating retrieval-augmented generation (RAG) systems."
+    )
     API_PREFIX: str = "/api"
     DEBUG_MODE: bool = False
     ENVIRONMENT: Environment = Field(default_factory=get_environment)
