@@ -1,0 +1,60 @@
+# FastAPI Core
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Pydantic & Settings
+pydantic
+pydantic-settings
+pydantic[email]
+
+# Security & Authentication
+python-jose[cryptography]
+bcrypt
+
+# Rate Limiting
+slowapi
+
+# Logging & Monitoring
+structlog
+python-json-logger
+asgi-correlation-id
+sentry-sdk[fastapi]
+
+# LLM / RAG Stack
+langchain
+langchain-community
+langchain-core
+
+# RAG evaluation
+ragas
+
+# Embeddings / ML utils
+numpy
+pandas
+
+# RAG / LLM Debugging
+langsmith
+
+# Database - SQLAlchemy & Async Drivers
+sqlalchemy
+alembic
+asyncpg
+psycopg2-binary  # Synchronous PostgreSQL driver for Alembic migrations
+aiosqlite
+
+# Qdrant Vector Database 
+qdrant-client
+
+# External Services
+supabase
+
+# Cache / Queue
+# Redis (for caching/task queues)
+redis
+
+# Celery (for background tasks)
+celery
+
+# HTTP Client (for external APIs)
+httpx

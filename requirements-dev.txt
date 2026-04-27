@@ -1,0 +1,25 @@
+# Include production requirements
+-r requirements.txt
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+pytest-xdist          # parallel test execution
+httpx                 # testing FastAPI endpoints
+anyio                 # async compatibility layer
+
+# Code Quality & Typing
+ruff
+mypy
+
+# Optional (keep only if your team uses them)
+black                 # formatter (redundant if ruff format is used)
+pylint                # deeper linting (slower, optional)
+
+# Development Tools
+ipython
+ipdb
+jupyterlab
+notebook
