@@ -143,7 +143,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
 
     Returns:
         structlog.stdlib.BoundLogger: Configured logger instance
-        
+
     Usage:
     Usage in normal services
         ```python
@@ -164,7 +164,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
                 )
                 raise
         ```
-        
+
     Usage in RAG pipeline
         ```python
         logger.info(
@@ -188,7 +188,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
             duration_ms=generation_duration_ms,
         )
         ```
-        
+
     Usage in RAGAS evaluation
         ```python
         logger.info(
@@ -207,4 +207,3 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
         ```
     """
     return structlog.get_logger(name)
-

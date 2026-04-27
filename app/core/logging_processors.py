@@ -1,9 +1,7 @@
 import re
 from typing import Any
 
-EMAIL_RE = re.compile(
-    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
-)
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 
 SENSITIVE_KEYS = {
     "password",

@@ -7,9 +7,7 @@ from app.db.base import BaseModel
 class User(BaseModel):
     __tablename__ = "users"
 
-    __table_args__ = (
-        UniqueConstraint("email", name="uq_users_email"),
-    )
+    __table_args__ = (UniqueConstraint("email", name="uq_users_email"),)
 
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
