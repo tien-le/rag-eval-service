@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
-from app.db.base_repository import DatabaseProvider
+from app.db.database_provider import DatabaseProvider
 
 
 class SQLiteProvider(DatabaseProvider):

@@ -1,6 +1,6 @@
 # services/cost_service.py
 
-from core.enums import MetricName
+from app.core.enums import MetricName
 
 
 class CostService:

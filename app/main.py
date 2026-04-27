@@ -131,14 +131,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from routers.evaluations import router as evaluations_router
-from routers.runs import router as runs_router
-from routers.health import router as health_router
+from app.routers.evaluations import router as evaluations_router
+from app.routers.runs import router as runs_router
+from app.routers.user import router as user_router
 
 # Include API routers
-app.include_router(health_router, prefix="/v1")
 app.include_router(evaluations_router, prefix="/v1")
 app.include_router(runs_router, prefix="/v1")
+app.include_router(user_router, prefix="/v1")
 
 
 @app.get("/health")

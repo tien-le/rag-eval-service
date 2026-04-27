@@ -1,7 +1,7 @@
 from sqlalchemy import String, Integer, Float
 from sqlalchemy.orm import Mapped, mapped_column
-from core.database import Base
-from core.enums import RunStatus
+from app.db.base import Base
+from app.core.enums import RunStatus
 
 
 class EvaluationRun(Base):

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa
 from app.core.auth import hash_password  # noqa
 from app.core.config import settings  # noqa
 from app.core.logging import get_logger, setup_logging  # noqa
-from app.db.repositories.user_repository import UserRepository  # noqa
+from app.repositories.user import UserRepository  # noqa
 from app.db.postgresql import postgresql_provider  # noqa
 from app.db.sqlite import sqlite_provider  # noqa
 

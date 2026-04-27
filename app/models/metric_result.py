@@ -2,7 +2,7 @@
 
 from sqlalchemy import String, Float, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from core.database import Base
+from app.db.base import Base
 
 
 class MetricResult(Base):

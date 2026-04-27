@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from core.enums import MetricName
+from app.core.enums import MetricName
 
 
 class EvaluationContext(BaseModel):

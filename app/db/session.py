@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from app.config import settings
+from app.core.config import settings
 
 engine_kwargs = {
-    "echo": settings.DB_ECHO,
+    "echo": settings.DEBUG_MODE,
     "pool_pre_ping": True,
 }
 
@@ -16,9 +16,8 @@ engine_kwargs = {
 if not settings.DATABASE_URL.startswith("sqlite"):
     engine_kwargs.update(
         {
-            "pool_size": settings.DB_POOL_SIZE,
-            "max_overflow": settings.DB_MAX_OVERFLOW,
-            "pool_timeout": settings.DB_POOL_TIMEOUT,
+            "pool_size": settings.DATABASE_POOL_SIZE,
+            "max_overflow": settings.DATABASE_MAX_OVERFLOW,
         }
     )
 

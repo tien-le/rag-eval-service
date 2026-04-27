@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Header
-from schemas.evaluation import EvaluationRequest, EvaluationCreatedResponse
-from services.evaluation_service import EvaluationService
+
+from app.schemas.evaluation import EvaluationRequest, EvaluationCreatedResponse
+from app.services.evaluation_service import EvaluationService
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 

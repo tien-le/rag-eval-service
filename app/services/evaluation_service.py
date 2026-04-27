@@ -1,11 +1,11 @@
 # services/evaluation_service.py
 
 from uuid import uuid4
-from core.enums import RunStatus
-from schemas.evaluation import EvaluationRequest
-from services.cost_service import CostService
-from services.idempotency_service import IdempotencyService
-from services.ragas_service import RagasService
+from app.core.enums import RunStatus
+from app.schemas.evaluation import EvaluationRequest
+from app.services.cost_service import CostService
+from app.services.idempotency_service import IdempotencyService
+from app.services.ragas_service import RagasService
 
 
 class EvaluationService:

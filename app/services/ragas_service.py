@@ -4,8 +4,8 @@ import asyncio
 from datasets import Dataset
 from ragas import evaluate
 
-from schemas.evaluation import EvaluationItemInput
-from core.enums import MetricName
+from app.schemas.evaluation import EvaluationItemInput
+from app.core.enums import MetricName
 
 
 class RagasService:
