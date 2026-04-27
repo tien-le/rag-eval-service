@@ -297,8 +297,8 @@ docker-compose-restart:
 
 # Help
 help:
-	@echo "FastAPI Template - Makefile Commands"
-	@echo "===================================="
+	@echo "Retrieval Augmented Generation (RAG) Evaluation Server - Makefile Commands"
+	@echo "=========================================================================="
 	@echo ""
 	@echo "Installation & Setup:"
 	@echo "  install                    Install dependencies using uv"

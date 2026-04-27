@@ -2,14 +2,14 @@
 
 from functools import lru_cache
 import os
-from enum import Enum
+from enum import StrEnum
 from typing import List
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     """Application environments."""
 
     DEV = "dev"
@@ -18,7 +18,7 @@ class Environment(str, Enum):
     TEST = "test"
 
 
-class DatabaseProvider(str, Enum):
+class DatabaseProvider(StrEnum):
     """Database provider options."""
 
     POSTGRESQL = "postgresql"
