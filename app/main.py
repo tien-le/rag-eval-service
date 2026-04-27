@@ -4,10 +4,12 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging_context import LoggingContextMiddleware
-from app.db.qdrant import qdrant_client
+from app.db.qdrant_provider import qdrant_client
 from app.core.logging import setup_logging, get_logger
-from app.db.mongodb import mongodb_client
-from app.db.providers import _sqlite_provider, _postgresql_provider
+
+# from app.db.mongodb_provider import mongodb_client
+from app.db.sqlite_provider import sqlite_provider
+from app.db.postgresql_provider import postgresql_provider
 from fastapi import FastAPI
 
 from asgi_correlation_id import CorrelationIdMiddleware
@@ -35,10 +37,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize database based on DB_PROVIDER setting
     if settings.DB_PROVIDER.value == "sqlite":
-        await _sqlite_provider.connect()
+        await sqlite_provider.connect()
         logger.info("SQLite database initialized")
     elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-        await _postgresql_provider.connect()
+        await postgresql_provider.connect()
         provider_name = (
             "Supabase" if settings.DB_PROVIDER.value == "supabase" else "PostgreSQL"
         )
@@ -50,14 +52,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
 
     # Initialize MongoDB if configured
-    if settings.MONGODB_URL:
-        try:
-            await mongodb_client.connect()
-            logger.info(
-                "MongoDB connected", extra={"database": settings.MONGODB_DATABASE}
-            )
-        except Exception as e:
-            logger.warning("Failed to connect to MongoDB", extra={"error": str(e)})
+    # if settings.MONGODB_URL:
+    #     try:
+    #         await mongodb_client.connect()
+    #         logger.info(
+    #             "MongoDB connected", extra={"database": settings.MONGODB_DATABASE}
+    #         )
+    #     except Exception as e:
+    #         logger.warning("Failed to connect to MongoDB", extra={"error": str(e)})
 
     # Initialize Qdrant if configured
     if settings.QDRANT_URL:
@@ -76,19 +78,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Close database based on DB_PROVIDER setting
     if settings.DB_PROVIDER.value == "sqlite":
-        await _sqlite_provider.disconnect()
+        await sqlite_provider.disconnect()
         logger.info("SQLite database closed")
     elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-        await _postgresql_provider.disconnect()
+        await postgresql_provider.disconnect()
         provider_name = (
             "Supabase" if settings.DB_PROVIDER.value == "supabase" else "PostgreSQL"
         )
         logger.info(f"{provider_name} database closed")
 
     # Close MongoDB if connected
-    if mongodb_client.client is not None:
-        await mongodb_client.disconnect()
-        logger.info("MongoDB disconnected")
+    # if mongodb_client.client is not None:
+    #     await mongodb_client.disconnect()
+    #     logger.info("MongoDB disconnected")
 
     # Close Qdrant if connected
     if qdrant_client.client is not None:

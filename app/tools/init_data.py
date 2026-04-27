@@ -18,8 +18,8 @@ from app.core.auth import hash_password  # noqa
 from app.core.config import settings  # noqa
 from app.core.logging import get_logger, setup_logging  # noqa
 from app.db.repositories.user_repository import UserRepository  # noqa
-from app.db.postgresql import _postgresql_provider  # noqa
-from app.db.sqlite import _sqlite_provider  # noqa
+from app.db.postgresql import postgresql_provider  # noqa
+from app.db.sqlite import sqlite_provider  # noqa
 
 # Setup logging
 setup_logging()
@@ -42,14 +42,14 @@ async def init_db() -> None:
     try:
         # Get database session based on provider
         if settings.DB_PROVIDER.value == "sqlite":
-            await _sqlite_provider.connect()
-            async with _sqlite_provider.get_session() as session:
+            await sqlite_provider.connect()
+            async with sqlite_provider.get_session() as session:
                 await _create_superuser(
                     session, superuser_email, superuser_password, superuser_full_name
                 )
         elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-            await _postgresql_provider.connect()
-            async with _postgresql_provider.get_session() as session:
+            await postgresql_provider.connect()
+            async with postgresql_provider.get_session() as session:
                 await _create_superuser(
                     session, superuser_email, superuser_password, superuser_full_name
                 )

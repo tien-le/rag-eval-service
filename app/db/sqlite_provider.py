@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
-from app.db.base import DatabaseProvider
+from app.db.base_repository import DatabaseProvider
 
 
 class SQLiteProvider(DatabaseProvider):
@@ -73,20 +73,12 @@ class SQLiteProvider(DatabaseProvider):
                 await session.close()
 
 
-# Global SQLite provider instance
-_sqlite_provider = SQLiteProvider()
-
-# Backward compatibility: expose engine and session_maker
-sqlite_engine: AsyncEngine | None = None
-sqlite_session_maker: async_sessionmaker[AsyncSession] | None = None
-
-
 def init_sqlite_db() -> None:
     """
     Initialize SQLite engine and session factory.
 
     Note: This is a synchronous wrapper for backward compatibility.
-    For new code, use `await _sqlite_provider.connect()` directly.
+    For new code, use `await sqlite_provider.connect()` directly.
     """
     # This will be called async in lifespan, but we maintain sync interface
     # for backward compatibility. The actual connection happens in connect()
@@ -95,7 +87,7 @@ def init_sqlite_db() -> None:
 
 async def close_sqlite_db() -> None:
     """Close SQLite engine and connections."""
-    await _sqlite_provider.disconnect()
+    await sqlite_provider.disconnect()
     # Update global references
     global sqlite_engine, sqlite_session_maker
     sqlite_engine = None
@@ -117,9 +109,17 @@ async def get_sqlite_session() -> AsyncGenerator[AsyncSession, None]:
             users = result.scalars().all()
         ```
     """
-    async with _sqlite_provider.get_session() as session:
+    async with sqlite_provider.get_session() as session:
         # Update global references for backward compatibility
         global sqlite_engine, sqlite_session_maker
-        sqlite_engine = _sqlite_provider.engine
-        sqlite_session_maker = _sqlite_provider.async_session_maker
+        sqlite_engine = sqlite_provider.engine
+        sqlite_session_maker = sqlite_provider.async_session_maker
         yield session
+
+
+# Global SQLite provider instance
+sqlite_provider = SQLiteProvider()
+
+# Backward compatibility: expose engine and session_maker
+sqlite_engine: AsyncEngine | None = None
+sqlite_session_maker: async_sessionmaker[AsyncSession] | None = None

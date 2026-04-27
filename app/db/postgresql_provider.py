@@ -114,21 +114,12 @@ class PostgreSQLProvider(DatabaseProvider):
         return url
 
 
-# Global PostgreSQL provider instance
-_postgresql_provider = PostgreSQLProvider()
-
-# Backward compatibility: expose engine and session_maker
-# These will be set when provider connects
-engine: AsyncEngine | None = None
-async_session_maker: async_sessionmaker[AsyncSession] | None = None
-
-
 def init_db() -> None:
     """
     Initialize database engine and session factory.
 
     Note: This is a synchronous wrapper for backward compatibility.
-    For new code, use `await _postgresql_provider.connect()` directly.
+    For new code, use `await postgresql_provider.connect()` directly.
     """
     # This will be called async in lifespan, but we maintain sync interface
     # for backward compatibility. The actual connection happens in connect()
@@ -137,7 +128,7 @@ def init_db() -> None:
 
 async def close_db() -> None:
     """Close database engine and connections."""
-    await _postgresql_provider.disconnect()
+    await postgresql_provider.disconnect()
     # Update global references
     global engine, async_session_maker
     engine = None
@@ -159,11 +150,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             users = result.scalars().all()
         ```
     """
-    async with _postgresql_provider.get_session() as session:
+    async with postgresql_provider.get_session() as session:
         # Update global references for backward compatibility
         global engine, async_session_maker
-        engine = _postgresql_provider.engine
-        async_session_maker = _postgresql_provider.async_session_maker
+        engine = postgresql_provider.engine
+        async_session_maker = postgresql_provider.async_session_maker
         yield session
 
 
@@ -174,13 +165,13 @@ async def enable_pgvector() -> None:
     This should be called during application startup if vector
     operations are needed.
     """
-    if _postgresql_provider.engine is None:
-        await _postgresql_provider.connect()
+    if postgresql_provider.engine is None:
+        await postgresql_provider.connect()
 
-    if _postgresql_provider.engine is None:
+    if postgresql_provider.engine is None:
         raise RuntimeError("Database engine not initialized")
 
-    async with _postgresql_provider.engine.begin() as conn:
+    async with postgresql_provider.engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 
@@ -189,4 +180,12 @@ async def enable_pgvector() -> None:
 # - Development: No connection errors if DB isn't running at import time
 # - Testing: Explicit control via fixtures
 # - Production: Initialization happens on first request (or can be done
-#   explicitly in application startup lifespan via _postgresql_provider.connect())
+#   explicitly in application startup lifespan via postgresql_provider.connect())
+
+# Global PostgreSQL provider instance
+postgresql_provider = PostgreSQLProvider()
+
+# Backward compatibility: expose engine and session_maker
+# These will be set when provider connects
+engine: AsyncEngine | None = None
+async_session_maker: async_sessionmaker[AsyncSession] | None = None

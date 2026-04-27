@@ -46,8 +46,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.db.postgresql import _postgresql_provider
-from app.db.sqlite import _sqlite_provider
+from app.db.postgresql import postgresql_provider
+from app.db.sqlite import sqlite_provider
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -75,10 +75,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     # Select database provider based on DB_PROVIDER setting
     if settings.DB_PROVIDER.value == "sqlite":
-        async with _sqlite_provider.get_session() as session:
+        async with sqlite_provider.get_session() as session:
             yield session
     elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-        async with _postgresql_provider.get_session() as session:
+        async with postgresql_provider.get_session() as session:
             yield session
     else:
         raise ValueError(

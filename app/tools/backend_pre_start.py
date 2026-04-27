@@ -16,8 +16,8 @@ from sqlalchemy import text  # noqa
 
 from app.core.config import settings  # noqa
 from app.core.logging import get_logger, setup_logging  # noqa
-from app.db.postgresql import _postgresql_provider  # noqa
-from app.db.sqlite import _sqlite_provider  # noqa
+from app.db.postgresql import postgresql_provider  # noqa
+from app.db.sqlite import sqlite_provider  # noqa
 
 # Setup logging
 setup_logging()
@@ -33,14 +33,14 @@ async def check_db_connection() -> bool:
     """
     try:
         if settings.DB_PROVIDER.value == "sqlite":
-            await _sqlite_provider.connect()
-            async with _sqlite_provider.get_session() as session:
+            await sqlite_provider.connect()
+            async with sqlite_provider.get_session() as session:
                 await session.execute(text("SELECT 1"))
             logger.info("SQLite database connection successful")
             return True
         elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-            await _postgresql_provider.connect()
-            async with _postgresql_provider.get_session() as session:
+            await postgresql_provider.connect()
+            async with postgresql_provider.get_session() as session:
                 await session.execute(text("SELECT 1"))
             provider_name = (
                 "Supabase" if settings.DB_PROVIDER.value == "supabase" else "PostgreSQL"
