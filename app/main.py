@@ -1,169 +1,173 @@
-from fastapi.middleware.cors import CORSMiddleware
-from typing import AsyncGenerator
+"""FastAPI application factory and entry point."""
+
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from app.core.config import settings
-from app.core.logging_context import LoggingContextMiddleware
-from app.db.qdrant_provider import qdrant_client
-from app.core.logging import setup_logging, get_logger
-
-# from app.db.mongodb_provider import mongodb_client
-from app.db.sqlite_provider import sqlite_provider
-from app.db.postgresql_provider import postgresql_provider
-from fastapi import FastAPI
-
 from asgi_correlation_id import CorrelationIdMiddleware
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.routers.health_router import router as health_router
+from app.core.config.exceptions import register_exception_handlers
+from app.core.config.logging import LoggingContextMiddleware, get_logger
+from app.core.config.settings import Settings, get_settings
+
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """
-    Lifespan context manager for FastAPI application.
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Application startup/shutdown lifecycle."""
 
-    Handles:
-    - Database connection initialization (startup)
-    - Database connection cleanup (shutdown)
-    - Optional MongoDB and Qdrant connections
-    """
-    # Startup: Initialize logging and database connections
-    setup_logging()
-    logger = get_logger(__name__)
+    settings: Settings = app.state.settings
 
     logger.info(
-        "Initializing database connections",
-        environment=settings.ENVIRONMENT.value,
-        db_provider=settings.DB_PROVIDER.value,
+        "app.startup name=%s environment=%s",
+        settings.APP_NAME,
+        settings.ENVIRONMENT,
     )
 
-    # Initialize database based on DB_PROVIDER setting
-    if settings.DB_PROVIDER.value == "sqlite":
-        await sqlite_provider.connect()
-        logger.info("SQLite database initialized")
-    elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-        await postgresql_provider.connect()
-        provider_name = (
-            "Supabase" if settings.DB_PROVIDER.value == "supabase" else "PostgreSQL"
-        )
-        logger.info(f"{provider_name} database initialized")
-    else:
-        raise ValueError(
-            f"Unsupported DB_PROVIDER: {settings.DB_PROVIDER.value}. "
-            "Supported values: supabase, postgresql, sqlite"
-        )
+    try:
+        # Initialize resources here:
+        # app.state.container = get_container()
+        # await init_database()
+        # await init_redis()
+        # setup_observability()
 
-    # Initialize MongoDB if configured
-    # if settings.MONGODB_URL:
-    #     try:
-    #         await mongodb_client.connect()
-    #         logger.info(
-    #             "MongoDB connected", extra={"database": settings.MONGODB_DATABASE}
-    #         )
-    #     except Exception as e:
-    #         logger.warning("Failed to connect to MongoDB", extra={"error": str(e)})
+        yield
 
-    # Initialize Qdrant if configured
-    if settings.QDRANT_URL:
-        try:
-            await qdrant_client.connect()
-            logger.info("Qdrant connected", extra={"url": settings.QDRANT_URL})
-        except Exception as e:
-            logger.warning("Failed to connect to Qdrant", extra={"error": str(e)})
+    finally:
+        logger.info("app.shutdown")
 
-    logger.info("Application startup complete")
-
-    yield
-
-    # Shutdown: Close database connections
-    logger.info("Shutting down database connections")
-
-    # Close database based on DB_PROVIDER setting
-    if settings.DB_PROVIDER.value == "sqlite":
-        await sqlite_provider.disconnect()
-        logger.info("SQLite database closed")
-    elif settings.DB_PROVIDER.value in ("supabase", "postgresql"):
-        await postgresql_provider.disconnect()
-        provider_name = (
-            "Supabase" if settings.DB_PROVIDER.value == "supabase" else "PostgreSQL"
-        )
-        logger.info(f"{provider_name} database closed")
-
-    # Close MongoDB if connected
-    # if mongodb_client.client is not None:
-    #     await mongodb_client.disconnect()
-    #     logger.info("MongoDB disconnected")
-
-    # Close Qdrant if connected
-    if qdrant_client.client is not None:
-        await qdrant_client.disconnect()
-        logger.info("Qdrant disconnected")
-
-    logger.info("Application shutdown complete")
+        # Close resources here:
+        # await close_redis()
+        # await close_database()
+        # await close_postgres_checkpoint_saver()
 
 
-# if settings.SENTRY_DSN:
-#     sentry_sdk.init(
-#         dsn=settings.SENTRY_DSN,
-#         # Add data like request headers and IP for users,
-#         # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-#         send_default_pii=True,
+# def add_request_middleware(app: FastAPI) -> None:
+#     @app.middleware("http")
+#     async def request_context_middleware(
+#         request: Request,
+#         call_next: Callable[[Request], Awaitable[Response]],
+#     ) -> Response:
+#         request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+#         token = set_request_id(request_id)
+#         started = perf_counter()
+
+#         try:
+#             response = await call_next(request)
+#         except Exception:
+#             elapsed_ms = (perf_counter() - started) * 1000
+#             logger.exception(
+#                 "api.request.failed method=%s path=%s request_id=%s elapsed_ms=%.1f",
+#                 request.method,
+#                 request.url.path,
+#                 request_id,
+#                 elapsed_ms,
+#             )
+#             raise
+#         finally:
+#             reset_request_id(token)
+
+#         elapsed_ms = (perf_counter() - started) * 1000
+#         response.headers["x-request-id"] = request_id
+#         response.headers["x-process-time-ms"] = f"{elapsed_ms:.1f}"
+
+#         logger.info(
+#             "api.request method=%s path=%s status=%s request_id=%s elapsed_ms=%.1f",
+#             request.method,
+#             request.url.path,
+#             response.status_code,
+#             request_id,
+#             elapsed_ms,
+#         )
+#         return response
+
+# def add_cors_middleware(app: FastAPI, settings: Settings) -> None:
+#     app.add_middleware(LoggingContextMiddleware)
+#     app.add_middleware(
+#         CorrelationIdMiddleware,
+#         header_name="X-Request-ID",
 #     )
 
-# Create FastAPI application
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.VERSION,
-    description=settings.DESCRIPTION,
-    lifespan=lifespan,
-    docs_url="/docs" if not settings.is_production else None,
-    redoc_url="/redoc" if not settings.is_production else None,
-)
-
-# Add correlation ID middleware first (before other middleware)
-app.add_middleware(CorrelationIdMiddleware)
-app.add_middleware(LoggingContextMiddleware)
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-from app.routers.evaluations import router as evaluations_router
-from app.routers.runs import router as runs_router
-from app.routers.user import router as user_router
-
-# Include API routers
-app.include_router(evaluations_router, prefix="/v1")
-app.include_router(runs_router, prefix="/v1")
-app.include_router(user_router, prefix="/v1")
+#     app.add_middleware(
+#         CORSMiddleware,
+#         allow_origins=settings.CORS_ORIGINS,
+#         allow_credentials=True,
+#         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+#         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+#         expose_headers=["X-Request-ID", "X-Process-Time-Ms"],
+#         max_age=600,
+#     )
 
 
-@app.get("/health")
-async def health_check() -> dict[str, str]:
-    """Health check endpoint.
+def add_middlewares(app: FastAPI, settings: Settings) -> None:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Request-ID",
+            "X-Correlation-ID",
+        ],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "X-Process-Time-Ms",
+        ],
+        max_age=600,
+    )
 
-    Returns:
-        Status dictionary
-    """
-    return {
-        "status": "ok",
-        "environment": settings.ENVIRONMENT.value,
-        "version": settings.VERSION,
-    }
+    # Logging reads correlation_id.get()
+    app.add_middleware(LoggingContextMiddleware)
+
+    # Important: Starlette middleware runs in reverse order.
+    # Add CorrelationIdMiddleware LAST so it runs FIRST.
+    app.add_middleware(
+        CorrelationIdMiddleware,
+        header_name="X-Request-ID",
+        update_request_header=True,
+    )
 
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    """Root endpoint.
+def include_routers(app: FastAPI, settings: Settings) -> None:
+    api_prefix = getattr(settings, "API_PREFIX", "/api")
 
-    Returns:
-        Welcome message
-    """
-    return {
-        "message": f"Welcome to {settings.APP_NAME}!",
-        "version": settings.VERSION,
-        "docs": "/docs" if not settings.is_production else "disabled",
-    }
+    app.include_router(health_router, prefix=api_prefix)
+
+    # app.include_router(auth_router, prefix=api_prefix)
+    # app.include_router(user_router, prefix=api_prefix)
+    # app.include_router(session_router, prefix=api_prefix)
+    # app.include_router(chat_router, prefix=api_prefix)
+    # app.include_router(human_approval_router, prefix=api_prefix)
+
+
+def create_app() -> FastAPI:
+    """Create and configure FastAPI application."""
+
+    settings = get_settings()
+
+    app = FastAPI(
+        title=settings.APP_NAME,
+        version=getattr(settings, "APP_VERSION", getattr(settings, "VERSION", "1.0.0")),
+        description=settings.DESCRIPTION,
+        lifespan=lifespan,
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None if settings.is_production else "/redoc",
+        openapi_url=None if settings.is_production else "/openapi.json",
+    )
+    app.state.settings = settings
+
+    register_exception_handlers(app)
+    # add_request_middleware(app)
+    # add_cors_middleware(app, settings)
+    add_middlewares(app, settings)
+    include_routers(app, settings)
+    return app
+
+
+app = create_app()

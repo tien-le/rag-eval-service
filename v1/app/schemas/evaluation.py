@@ -1,5 +1,24 @@
 from pydantic import BaseModel, Field
+
 from app.core.enums import MetricName
+from app.domain.evaluation.enums import RetrievalMetric
+
+
+class RetrievalQualityRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    contexts: list[str] = Field(..., min_length=1)
+    reference_answer: str | None = None
+    metrics: list[RetrievalMetric] = Field(
+        default_factory=lambda: [
+            RetrievalMetric.CONTEXT_PRECISION,
+            RetrievalMetric.CONTEXT_RECALL,
+        ]
+    )
+
+
+class RetrievalQualityResponse(BaseModel):
+    scores: dict[str, float | None]
+    details: dict
 
 
 class EvaluationContext(BaseModel):

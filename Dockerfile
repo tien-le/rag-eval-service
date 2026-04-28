@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for FastAPI application
 # Stage 1: Builder - Install dependencies
-FROM python:3.12-slim as builder
+FROM python:3.13-slim as builder
 
 # Set build arguments
 ARG BUILDPLATFORM
@@ -16,9 +16,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install system dependencies for building Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
+RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential gcc g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
@@ -28,7 +26,7 @@ COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Stage 2: Runtime - Production image
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -39,7 +37,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install runtime system dependencies only
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends  curl build-essential gcc g++ \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 

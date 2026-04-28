@@ -13,6 +13,8 @@ anyio                 # async compatibility layer
 # Code Quality & Typing
 ruff
 mypy
+coverage
+ty
 
 # Optional (keep only if your team uses them)
 black                 # formatter (redundant if ruff format is used)
