@@ -4,6 +4,16 @@ Usage:
     from app.core.config.exceptions import NotFoundError, AlreadyExistsError
     raise NotFoundError("User", str(user_id))
     raise AlreadyExistsError("User", email)
+
+    raise EmbeddingServiceError("OpenAI Embeddings", "Request timed out.")
+
+    raise EmbeddingServiceError(
+        "Qdrant embedding worker",
+        "Failed to generate vectors.",
+        extra={"document_id": str(document_id)},
+    )
+
+    logger.exception("Application exception: %s", exc.detail)
 """
 
 from __future__ import annotations
@@ -24,53 +34,44 @@ class AppException(Exception):
 
     code: str = "APP_ERROR"
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
+    default_detail: str = "An unexpected error occurred."
 
     def __init__(
         self,
-        detail: str = "An unexpected error occurred.",
+        detail: str | None = None,
         *,
         extra: dict[str, Any] | None = None,
     ) -> None:
-        self.detail = detail
+        self.detail = detail or self.default_detail
         self.extra = extra or {}
-        super().__init__(detail)
+        super().__init__(self.detail)
 
 
 class AuthenticationError(AppException):
     code = "AUTHENTICATION_ERROR"
     status_code = status.HTTP_401_UNAUTHORIZED
-
-    def __init__(self, detail: str = "Could not validate credentials.") -> None:
-        super().__init__(detail)
+    default_detail = "Could not validate credentials."
 
 
 class InvalidCredentialsError(AuthenticationError):
     code = "INVALID_CREDENTIALS"
-
-    def __init__(self) -> None:
-        super().__init__("Incorrect email or password.")
+    default_detail = "Incorrect email or password."
 
 
 class TokenExpiredError(AuthenticationError):
     code = "TOKEN_EXPIRED"
-
-    def __init__(self) -> None:
-        super().__init__("Token has expired.")
+    default_detail = "Token has expired."
 
 
 class InvalidTokenError(AuthenticationError):
     code = "INVALID_TOKEN"
-
-    def __init__(self) -> None:
-        super().__init__("Token is invalid or malformed.")
+    default_detail = "Token is invalid or malformed."
 
 
 class InsufficientPermissionsError(AppException):
     code = "FORBIDDEN"
     status_code = status.HTTP_403_FORBIDDEN
-
-    def __init__(self, detail: str = "You do not have permission.") -> None:
-        super().__init__(detail)
+    default_detail = "You do not have permission."
 
 
 class NotFoundError(AppException):
@@ -78,105 +79,103 @@ class NotFoundError(AppException):
     status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(
-        self, resource: str = "Resource", identifier: str | None = None
+        self,
+        resource: str = "Resource",
+        identifier: str | None = None,
+        *,
+        extra: dict[str, Any] | None = None,
     ) -> None:
-        detail = f"{resource} not found."
-        if identifier:
-            detail = f"{resource} '{identifier}' not found."
-        super().__init__(detail)
+        detail = (
+            f"{resource} '{identifier}' not found."
+            if identifier
+            else f"{resource} not found."
+        )
+        super().__init__(detail, extra=extra)
 
 
 class ConflictError(AppException):
     code = "CONFLICT"
     status_code = status.HTTP_409_CONFLICT
-
-    def __init__(self, detail: str = "Conflict occurred.") -> None:
-        super().__init__(detail)
+    default_detail = "Conflict occurred."
 
 
 class AlreadyExistsError(ConflictError):
     code = "ALREADY_EXISTS"
 
     def __init__(
-        self, resource: str = "Resource", identifier: str | None = None
+        self,
+        resource: str = "Resource",
+        identifier: str | None = None,
+        *,
+        extra: dict[str, Any] | None = None,
     ) -> None:
-        detail = f"{resource} already exists."
-        if identifier:
-            detail = f"{resource} '{identifier}' already exists."
-        super().__init__(detail)
+        detail = (
+            f"{resource} '{identifier}' already exists."
+            if identifier
+            else f"{resource} already exists."
+        )
+        super().__init__(detail, extra=extra)
 
 
 class DomainValidationError(AppException):
     code = "VALIDATION_ERROR"
     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-
-    def __init__(self, detail: str = "Validation failed.") -> None:
-        super().__init__(detail)
+    default_detail = "Validation failed."
 
 
 class RateLimitExceededError(AppException):
     code = "RATE_LIMIT_EXCEEDED"
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
-
-    def __init__(self, detail: str = "Rate limit exceeded. Try again later.") -> None:
-        super().__init__(detail)
+    default_detail = "Rate limit exceeded. Try again later."
 
 
 class AgentExecutionError(AppException):
     code = "AGENT_EXECUTION_ERROR"
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 class LLMProviderError(AppException):
     code = "LLM_PROVIDER_ERROR"
     status_code = status.HTTP_502_BAD_GATEWAY
 
-    def __init__(self, provider: str = "LLM", detail: str = "") -> None:
+    def __init__(
+        self,
+        provider: str = "LLM",
+        detail: str = "",
+        *,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         message = (
             f"{provider} provider error." if not detail else f"{provider}: {detail}"
         )
-        super().__init__(message)
-
-
-class GraphCompilationError(AppException):
-    code = "GRAPH_COMPILATION_ERROR"
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-
-
-class MCPBootstrapError(GraphCompilationError):
-    code = "MCP_BOOTSTRAP_ERROR"
-
-    def __init__(self, detail: str = "Failed to bootstrap MCP tools.") -> None:
-        super().__init__(detail)
-
-
-class GraphNotInterruptedError(AppException):
-    code = "GRAPH_NOT_INTERRUPTED"
-    status_code = status.HTTP_409_CONFLICT
-
-    def __init__(
-        self, detail: str = "Graph run is not in an interrupted state."
-    ) -> None:
-        super().__init__(detail)
-
-
-class DatabaseError(AppException):
-    code = "DATABASE_ERROR"
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-
-
-class CacheError(AppException):
-    code = "CACHE_ERROR"
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        super().__init__(message, extra=extra)
 
 
 class ExternalServiceError(AppException):
     code = "EXTERNAL_SERVICE_ERROR"
     status_code = status.HTTP_502_BAD_GATEWAY
 
-    def __init__(self, service: str = "External service", detail: str = "") -> None:
+    def __init__(
+        self,
+        service: str = "External service",
+        detail: str = "",
+        *,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         message = f"{service} is unavailable." if not detail else f"{service}: {detail}"
-        super().__init__(message)
+        super().__init__(message, extra=extra)
+
+
+class EmbeddingServiceError(ExternalServiceError):
+    code = "EMBEDDING_SERVICE_ERROR"
+
+    def __init__(
+        self,
+        provider: str = "Embedding service",
+        detail: str = "",
+        *,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(provider, detail, extra=extra)
 
 
 def error_response(
