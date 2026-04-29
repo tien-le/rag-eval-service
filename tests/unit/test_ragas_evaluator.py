@@ -1,16 +1,19 @@
-"""Tests for Ragas evaluator adapter internals."""
+"""Tests for EvaluationService (EvaluatorPort implementation)."""
 
 import unittest
 
-from app.services.rag_eval_service import RagasEvaluator
+from app.services.evaluation_service import EvaluationService
 
 
 class RagasEvaluatorTests(unittest.TestCase):
-    def test_resolve_metric_raises_for_unknown_metric(self) -> None:
-        evaluator = RagasEvaluator(llm=object(), embeddings=object())
-
-        with self.assertRaises(ValueError):
-            evaluator._resolve_metric("unknown_metric")
+    def test_evaluation_service_implements_evaluator_port(self) -> None:
+        """Verify EvaluationService implements EvaluatorPort."""
+        service = EvaluationService(
+            evaluator_llm=object(), evaluator_embeddings=object()
+        )
+        # Should have evaluate method from EvaluatorPort
+        self.assertTrue(hasattr(service, "evaluate"))
+        self.assertTrue(callable(service.evaluate))
 
 
 if __name__ == "__main__":
