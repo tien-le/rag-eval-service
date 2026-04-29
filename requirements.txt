@@ -26,6 +26,8 @@ sentry-sdk[fastapi]
 langchain
 langchain-community
 langchain-core
+langchain_openai
+langchain_postgres
 
 # RAG evaluation
 ragas
