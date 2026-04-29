@@ -10,8 +10,11 @@ job history without TTL limits.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException
 
+from app.api.deps.rate_limit import rate_limit_job_poll
 from app.infra.jobs.redis_job_store import get_job
 from app.schemas.job import JobStatusResponse
 
@@ -19,8 +22,13 @@ router = APIRouter(prefix="/jobs", tags=["v2 · Jobs"])
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse)
-async def get_job_status_v2(job_id: str) -> JobStatusResponse:
+async def get_job_status_v2(
+    job_id: str,
+    rate_limit: Annotated[dict, rate_limit_job_poll],
+) -> JobStatusResponse:
     job = await get_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found or expired")
+        raise HTTPException(
+            status_code=404, detail=f"Job '{job_id}' not found or expired"
+        )
     return JobStatusResponse(**job)

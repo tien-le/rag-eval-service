@@ -1,7 +1,14 @@
 """Evaluation router for metric endpoints."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 
+from app.api.deps.rate_limit import (
+    rate_limit_classification,
+    rate_limit_metrics_catalog,
+    rate_limit_ragas_expensive,
+)
 from app.api.schemas.evaluation import (
     ClassificationMetricsRequest,
     ClassificationMetricsResponse,
@@ -30,6 +37,7 @@ def _get_evaluation_service() -> EvaluationService:
 
 @router.get("/metrics", response_model=MetricCatalogResponse)
 async def get_metric_catalog(
+    rate_limit: Annotated[dict, rate_limit_metrics_catalog],
     service: EvaluationService = Depends(_get_evaluation_service),
 ) -> MetricCatalogResponse:
     return MetricCatalogResponse(metrics=service.metric_catalog())
@@ -38,6 +46,7 @@ async def get_metric_catalog(
 @router.post("/classification", response_model=ClassificationMetricsResponse)
 async def evaluate_classification(
     payload: ClassificationMetricsRequest,
+    rate_limit: Annotated[dict, rate_limit_classification],
     service: EvaluationService = Depends(_get_evaluation_service),
 ) -> ClassificationMetricsResponse:
     result = service.evaluate_classification(
@@ -51,6 +60,7 @@ async def evaluate_classification(
 @router.post("/ragas/single-turn", response_model=RagasSingleTurnResponse)
 async def evaluate_ragas_single_turn(
     payload: RagasSingleTurnRequest,
+    rate_limit: Annotated[dict, rate_limit_ragas_expensive],
     service: EvaluationService = Depends(_get_evaluation_service),
 ) -> RagasSingleTurnResponse:
     result = await service.evaluate_ragas_single_turn(
@@ -69,6 +79,7 @@ async def evaluate_ragas_single_turn(
 @router.post("/ragas/multi-turn", response_model=RagasMultiTurnResponse)
 async def evaluate_ragas_multi_turn(
     payload: RagasMultiTurnRequest,
+    rate_limit: Annotated[dict, rate_limit_ragas_expensive],
     service: EvaluationService = Depends(_get_evaluation_service),
 ) -> RagasMultiTurnResponse:
     result = await service.evaluate_ragas_multi_turn(

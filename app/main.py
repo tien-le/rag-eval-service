@@ -28,7 +28,6 @@ from app.core.middleware import (
     CorrelationIdMiddleware,
     ErrorMiddleware,
     LatencyTrackingMiddleware,
-    RateLimitMiddleware,
     RequestIdMiddleware,
     TenantMiddleware,
 )
@@ -107,8 +106,6 @@ def add_middlewares(app: FastAPI, settings: Settings) -> None:
             "X-Correlation-ID",
             "X-Process-Time-Ms",
             "X-Tenant-ID",
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
             "traceparent",
         ],
         max_age=600,
@@ -128,12 +125,8 @@ def add_middlewares(app: FastAPI, settings: Settings) -> None:
     # Latency tracking
     app.add_middleware(LatencyTrackingMiddleware, slow_threshold_ms=1000.0)
 
-    # Rate limiting
-    if settings.RATE_LIMIT_ENABLED:
-        app.add_middleware(
-            RateLimitMiddleware,
-            requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,
-        )
+    # Rate limiting is handled by SlowAPI in app/core/security/rate_limiter.py
+    # Use the limiter decorator on individual endpoints for granular control
 
     # Tenant resolution
     app.add_middleware(TenantMiddleware, default_tenant="default")

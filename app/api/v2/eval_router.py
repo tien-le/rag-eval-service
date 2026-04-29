@@ -14,11 +14,12 @@ Falls back to a 503 if Kafka is not configured.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import asdict
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.api.deps.rate_limit import rate_limit_ragas_async
 from app.api.schemas.evaluation import (
     RagasMultiTurnRequest,
     RagasSingleTurnRequest,
@@ -51,6 +52,7 @@ def _get_kafka_publisher(request: Request) -> KafkaPublisher:
 @router.post("/ragas/single-turn", response_model=AsyncJobResponse)
 async def evaluate_single_turn_v2(
     payload: RagasSingleTurnRequest,
+    rate_limit: Annotated[dict, rate_limit_ragas_async],
     publisher: KafkaPublisher = Depends(_get_kafka_publisher),
 ) -> AsyncJobResponse:
     job_id = await create_job("ragas_single_turn")
@@ -75,6 +77,7 @@ async def evaluate_single_turn_v2(
 @router.post("/ragas/multi-turn", response_model=AsyncJobResponse)
 async def evaluate_multi_turn_v2(
     payload: RagasMultiTurnRequest,
+    rate_limit: Annotated[dict, rate_limit_ragas_async],
     publisher: KafkaPublisher = Depends(_get_kafka_publisher),
 ) -> AsyncJobResponse:
     job_id = await create_job("ragas_multi_turn")

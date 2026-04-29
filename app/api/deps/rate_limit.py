@@ -149,6 +149,25 @@ rate_limit_by_tenant = rate_limit_dependency(1000, "tenant")
 rate_limit_by_user = rate_limit_dependency(100, "user")
 rate_limit_by_api_key = rate_limit_dependency(10000, "api_key")
 
+# Evaluation-specific limits
+rate_limit_ragas_expensive = rate_limit_dependency(
+    10, "tenant"
+)  # LLM calls - expensive
+rate_limit_ragas_async = rate_limit_dependency(100, "tenant")  # Async enqueue - cheap
+rate_limit_classification = rate_limit_dependency(100, "ip")  # Sync - moderate
+rate_limit_metrics_catalog = rate_limit_dependency(1000, "ip")  # Cheap read
+
+# Auth-specific limits
+rate_limit_auth_login = rate_limit_dependency(5, "ip")  # Strict - prevent brute force
+rate_limit_auth_normal = rate_limit_dependency(60, "ip")  # Normal auth operations
+
+# Admin limits
+rate_limit_admin_write = rate_limit_dependency(30, "user")  # Write operations
+rate_limit_admin_read = rate_limit_dependency(100, "user")  # Read operations
+
+# Job polling limits
+rate_limit_job_poll = rate_limit_dependency(300, "ip")  # Job status polling
+
 
 class TenantQuotaChecker:
     """Check tenant quota limits."""

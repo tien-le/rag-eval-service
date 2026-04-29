@@ -9,6 +9,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.deps.auth import CurrentUser, get_current_user, require_permissions
+from app.api.deps.rate_limit import (
+    rate_limit_admin_read,
+    rate_limit_admin_write,
+)
 from app.api.deps.tenant import get_tenant_id
 from app.core.config.logging import get_logger
 from app.core.config.settings import Settings, get_settings
@@ -109,6 +113,7 @@ def _get_users_store() -> dict[str, dict[str, Any]]:
 )
 async def create_user(
     request: CreateUserRequest,
+    rate_limit: Annotated[dict, rate_limit_admin_write],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> UserResponse:
     """Create a new user in the system."""
@@ -166,6 +171,7 @@ async def create_user(
     dependencies=[require_permissions("admin:read")],
 )
 async def list_users(
+    rate_limit: Annotated[dict, rate_limit_admin_read],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> UserListResponse:
     """List all users in the system."""
@@ -196,6 +202,7 @@ async def list_users(
 )
 async def get_user(
     user_id: str,
+    rate_limit: Annotated[dict, rate_limit_admin_read],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> UserResponse:
     """Get a specific user by ID."""
@@ -228,6 +235,7 @@ async def get_user(
 async def update_user(
     user_id: str,
     request: UpdateUserRequest,
+    rate_limit: Annotated[dict, rate_limit_admin_write],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> UserResponse:
     """Update a user's details."""
@@ -271,6 +279,7 @@ async def update_user(
 )
 async def delete_user(
     user_id: str,
+    rate_limit: Annotated[dict, rate_limit_admin_write],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> None:
     """Delete a user from the system."""
@@ -296,6 +305,7 @@ async def delete_user(
 )
 async def reset_user_password(
     user_id: str,
+    rate_limit: Annotated[dict, rate_limit_admin_write],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> dict[str, str]:
     """Reset a user's password and return a temporary password."""
@@ -331,6 +341,7 @@ async def reset_user_password(
     dependencies=[require_permissions("admin:read")],
 )
 async def get_system_status(
+    rate_limit: Annotated[dict, rate_limit_admin_read],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> SystemStatusResponse:
     """Get system status information."""
@@ -353,6 +364,7 @@ async def get_system_status(
 )
 async def trigger_maintenance(
     task: str,
+    rate_limit: Annotated[dict, rate_limit_admin_write],
     user: Annotated[CurrentUser, require_permissions("admin:write")],
 ) -> dict[str, str]:
     """Trigger a maintenance task."""
@@ -426,6 +438,7 @@ class TokenResetResponse(BaseModel):
     dependencies=[require_permissions("admin:read")],
 )
 async def get_token_config(
+    rate_limit: Annotated[dict, rate_limit_admin_read],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenConfigResponse:
     """Get token expiration configuration."""
@@ -446,6 +459,7 @@ async def get_token_config(
 )
 async def admin_validate_token(
     request: AdminTokenValidationRequest,
+    rate_limit: Annotated[dict, rate_limit_admin_read],
     admin_user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> AdminTokenValidationResponse:
     """Validate a token with detailed admin info.
@@ -498,6 +512,7 @@ async def admin_validate_token(
 )
 async def reset_user_tokens(
     user_id: str,
+    rate_limit: Annotated[dict, rate_limit_admin_write],
     admin_user: Annotated[CurrentUser, Depends(get_current_user)],
     tenant_id: Annotated[str, Depends(get_tenant_id)],
 ) -> TokenResetResponse:

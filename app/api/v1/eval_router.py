@@ -10,8 +10,16 @@ Workers update job status in Redis via redis_job_store.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends
 
+from app.api.deps.rate_limit import (
+    rate_limit_classification,
+    rate_limit_metrics_catalog,
+    rate_limit_ragas_async,
+    rate_limit_ragas_expensive,
+)
 from app.api.schemas.evaluation import (
     ClassificationMetricsRequest,
     ClassificationMetricsResponse,
@@ -44,6 +52,7 @@ def _get_service() -> EvaluationService:
 
 @router.get("/metrics", response_model=MetricCatalogResponse)
 async def get_metric_catalog(
+    rate_limit: Annotated[dict, rate_limit_metrics_catalog],
     svc: EvaluationService = Depends(_get_service),
 ) -> MetricCatalogResponse:
     return MetricCatalogResponse(metrics=svc.metric_catalog())
@@ -52,6 +61,7 @@ async def get_metric_catalog(
 @router.post("/classification", response_model=ClassificationMetricsResponse)
 async def evaluate_classification(
     payload: ClassificationMetricsRequest,
+    rate_limit: Annotated[dict, rate_limit_classification],
     svc: EvaluationService = Depends(_get_service),
 ) -> ClassificationMetricsResponse:
     result = svc.evaluate_classification(
@@ -65,6 +75,7 @@ async def evaluate_classification(
 @router.post("/ragas/single-turn", response_model=RagasSingleTurnResponse)
 async def evaluate_single_turn(
     payload: RagasSingleTurnRequest,
+    rate_limit: Annotated[dict, rate_limit_ragas_expensive],
     svc: EvaluationService = Depends(_get_service),
 ) -> RagasSingleTurnResponse:
     result = await svc.evaluate_ragas_single_turn(
@@ -83,6 +94,7 @@ async def evaluate_single_turn(
 @router.post("/ragas/multi-turn", response_model=RagasMultiTurnResponse)
 async def evaluate_multi_turn(
     payload: RagasMultiTurnRequest,
+    rate_limit: Annotated[dict, rate_limit_ragas_expensive],
     svc: EvaluationService = Depends(_get_service),
 ) -> RagasMultiTurnResponse:
     result = await svc.evaluate_ragas_multi_turn(
@@ -106,6 +118,7 @@ async def evaluate_multi_turn(
 
 @router.post("/ragas/single-turn/async", response_model=AsyncJobResponse)
 async def evaluate_single_turn_async(
+    rate_limit: Annotated[dict, rate_limit_ragas_async],
     payload: RagasSingleTurnRequest,
 ) -> AsyncJobResponse:
     job_id = await create_job("ragas_single_turn")
@@ -127,6 +140,7 @@ async def evaluate_single_turn_async(
 
 @router.post("/ragas/multi-turn/async", response_model=AsyncJobResponse)
 async def evaluate_multi_turn_async(
+    rate_limit: Annotated[dict, rate_limit_ragas_async],
     payload: RagasMultiTurnRequest,
 ) -> AsyncJobResponse:
     job_id = await create_job("ragas_multi_turn")

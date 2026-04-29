@@ -8,6 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.deps.auth import CurrentUser, get_current_user
+from app.api.deps.rate_limit import (
+    rate_limit_auth_login,
+    rate_limit_auth_normal,
+)
 from app.core.config.logging import get_logger
 from app.core.config.settings import Settings, get_settings
 from app.core.security.jwt_service import (
@@ -114,6 +118,7 @@ def _authenticate_user(
 )
 async def login(
     request: LoginRequest,
+    rate_limit: Annotated[dict, rate_limit_auth_login],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenResponse:
     """Authenticate user and issue JWT tokens."""
@@ -158,10 +163,11 @@ async def login(
 )
 async def get_token(
     request: LoginRequest,
+    rate_limit: Annotated[dict, rate_limit_auth_login],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenResponse:
     """OAuth2-style token endpoint (same as login)."""
-    return await login(request, settings)
+    return await login(request, rate_limit, settings)
 
 
 @router.post(
@@ -173,6 +179,7 @@ async def get_token(
 )
 async def refresh_token(
     request: RefreshRequest,
+    rate_limit: Annotated[dict, rate_limit_auth_normal],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenResponse:
     """Refresh access token using a valid refresh token."""
@@ -215,6 +222,7 @@ async def refresh_token(
 )
 async def validate_token(
     request: TokenValidationRequest,
+    rate_limit: Annotated[dict, rate_limit_auth_normal],
 ) -> TokenValidationResponse:
     """Validate a JWT token and return its status."""
     from app.core.security.jwt_service import decode_token
@@ -241,6 +249,7 @@ async def validate_token(
     description="Get information about the currently authenticated user.",
 )
 async def get_current_user_info(
+    rate_limit: Annotated[dict, rate_limit_auth_normal],
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> UserInfoResponse:
     """Get information about the authenticated user."""
@@ -258,6 +267,7 @@ async def get_current_user_info(
     description="Invalidate tokens on client side. Server-side token revocation not implemented.",
 )
 async def logout(
+    rate_limit: Annotated[dict, rate_limit_auth_normal],
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> dict[str, str]:
     """Logout endpoint - tokens should be discarded by client.
