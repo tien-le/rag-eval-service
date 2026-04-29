@@ -5,11 +5,14 @@ from contextlib import asynccontextmanager
 
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from app.api.routers.eval_router import router as eval_router
 from app.api.routers.health_router import router as health_router
+from app.api.v1.eval_router import router as v1_eval_router
+from app.api.v1.jobs_router import router as v1_jobs_router
+from app.api.v2.eval_router import router as v2_eval_router
+from app.api.v2.jobs_router import router as v2_jobs_router
 from app.core.config.exceptions import register_exception_handlers
 from app.core.config.logging import LoggingContextMiddleware, get_logger, setup_logging
 from app.core.config.observability import (
@@ -17,6 +20,7 @@ from app.core.config.observability import (
     setup_observability,
 )
 from app.core.config.settings import Settings, get_settings
+from fastapi.middleware.cors import CORSMiddleware
 
 setup_logging()
 setup_observability()
@@ -35,25 +39,39 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.ENVIRONMENT,
     )
 
+    # --- Redis (used by v1 job store, rate limiter, Celery broker) ---
+    from app.infra.cache.redis_client import close_redis_pool, init_redis_pool
+
+    await init_redis_pool()
+    logger.info("app.redis.ready")
+
+    # --- Kafka publisher (v2 only; opt-in via KAFKA_ENABLED=true) ---
+    if settings.KAFKA_ENABLED:
+        from app.infra.event_bus.kafka import KafkaPublisher
+
+        publisher = KafkaPublisher(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
+        await publisher.start()
+        app.state.kafka_publisher = publisher
+        logger.info(
+            "app.kafka.ready bootstrap=%s", settings.KAFKA_BOOTSTRAP_SERVERS
+        )
+    else:
+        app.state.kafka_publisher = None
+        logger.info("app.kafka.disabled (set KAFKA_ENABLED=true to enable v2 endpoints)")
+
     try:
-        # Initialize resources here:
-        # app.state.container = get_container()
-        # await init_database()
-        # await init_redis()
-
         yield
-
     finally:
         logger.info("app.shutdown")
 
-        # Close resources here:
-        # await close_redis()
-        # await close_database()
-        # await close_postgres_checkpoint_saver()
+        await close_redis_pool()
+
+        if settings.KAFKA_ENABLED and app.state.kafka_publisher:
+            await app.state.kafka_publisher.stop()
 
 
 def add_middlewares(app: FastAPI, settings: Settings) -> None:
-    """Add middlewares"""
+    """Add middlewares."""
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -92,14 +110,17 @@ def add_middlewares(app: FastAPI, settings: Settings) -> None:
 def include_routers(app: FastAPI, settings: Settings) -> None:
     api_prefix = getattr(settings, "API_PREFIX", "/api")
 
+    # --- Legacy (no version prefix — backward compat) ---
     app.include_router(health_router, prefix=api_prefix)
     app.include_router(eval_router, prefix=api_prefix)
 
-    # app.include_router(auth_router, prefix=api_prefix)
-    # app.include_router(user_router, prefix=api_prefix)
-    # app.include_router(session_router, prefix=api_prefix)
-    # app.include_router(chat_router, prefix=api_prefix)
-    # app.include_router(human_approval_router, prefix=api_prefix)
+    # --- v1: single service + Redis + Celery (1K RPM) ---
+    app.include_router(v1_eval_router, prefix=f"{api_prefix}/v1")
+    app.include_router(v1_jobs_router, prefix=f"{api_prefix}/v1")
+
+    # --- v2: Kafka + worker pools (100K RPM) ---
+    app.include_router(v2_eval_router, prefix=f"{api_prefix}/v2")
+    app.include_router(v2_jobs_router, prefix=f"{api_prefix}/v2")
 
 
 def create_app() -> FastAPI:

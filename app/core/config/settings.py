@@ -162,9 +162,17 @@ class Settings(BaseSettings):
     MEMORY_SUMMARIZER_PROVIDER: Literal["openai", "anthropic", "gemini", ""] = ""
     MEMORY_SUMMARIZER_MODEL_NAME: str = ""
 
-    # Celery
+    # Celery (v1 — Redis broker)
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+
+    # Kafka (v2 — 100K RPM tier, opt-in)
+    KAFKA_ENABLED: bool = False
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
+    KAFKA_TOPIC_EVAL_REQUESTED: str = "eval.requested"
+    KAFKA_TOPIC_EVAL_COMPLETED: str = "eval.completed"
+    KAFKA_TOPIC_EVAL_FAILED: str = "eval.failed"
+    KAFKA_CONSUMER_GROUP_ID: str = "eval-workers"
 
     # CORS
     BACKEND_CORS_ORIGINS: str = ""
@@ -288,7 +296,8 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT == Environment.TEST
 
     @property
-    def jwt_secret_key(self) -> str:
+    def resolved_jwt_secret(self) -> str:
+        """Returns the effective JWT secret, falling back to SECRET_KEY."""
         if self.JWT_SECRET_KEY:
             return self.JWT_SECRET_KEY.get_secret_value()
         return self.SECRET_KEY.get_secret_value()

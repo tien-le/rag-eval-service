@@ -57,8 +57,11 @@ supabase
 # Redis (for caching/task queues)
 redis
 
-# Celery (for background tasks)
+# Celery (v1 — async jobs via Redis broker)
 celery
+
+# Kafka (v2 — high-throughput event streaming, opt-in)
+aiokafka
 
 # HTTP Client (for external APIs)
 httpx
