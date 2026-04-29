@@ -119,7 +119,7 @@ class AlreadyExistsError(ConflictError):
 
 class DomainValidationError(AppException):
     code = "VALIDATION_ERROR"
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     default_detail = "Validation failed."
 
 
@@ -238,7 +238,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return error_response(
             request=request,
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             code="REQUEST_VALIDATION_ERROR",
             detail=exc.errors(),
         )

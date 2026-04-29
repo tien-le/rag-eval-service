@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import structlog
-from asgi_correlation_id import correlation_id
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -48,7 +47,7 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
         settings = get_settings()
         started = time.perf_counter()
 
-        request_id = correlation_id.get()
+        request_id = getattr(request.state, "correlation_id", None)
         trace_id, span_id = get_trace_context()
 
         structlog.contextvars.clear_contextvars()

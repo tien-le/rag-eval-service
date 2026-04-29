@@ -87,7 +87,9 @@ def test_v1_classification_returns_summary(v1_client):
 
 
 def test_v1_single_turn_sync_returns_scores(v1_client):
-    response = v1_client.post("/api/v1/eval/ragas/single-turn", json=_SINGLE_TURN_PAYLOAD)
+    response = v1_client.post(
+        "/api/v1/eval/ragas/single-turn", json=_SINGLE_TURN_PAYLOAD
+    )
     assert response.status_code == 200
     body = response.json()
     assert "scores" in body
@@ -127,7 +129,9 @@ def test_v1_single_turn_async_returns_job_id(app_client):
         patch("app.api.v1.eval_router.ragas_single_turn_task") as mock_task,
     ):
         mock_task.delay.return_value = MagicMock()
-        response = client.post("/api/v1/eval/ragas/single-turn/async", json=_SINGLE_TURN_PAYLOAD)
+        response = client.post(
+            "/api/v1/eval/ragas/single-turn/async", json=_SINGLE_TURN_PAYLOAD
+        )
 
     assert response.status_code == 200
     body = response.json()
@@ -147,7 +151,9 @@ def test_v1_multi_turn_async_returns_job_id(app_client):
         patch("app.api.v1.eval_router.ragas_multi_turn_task") as mock_task,
     ):
         mock_task.delay.return_value = MagicMock()
-        response = client.post("/api/v1/eval/ragas/multi-turn/async", json=_MULTI_TURN_PAYLOAD)
+        response = client.post(
+            "/api/v1/eval/ragas/multi-turn/async", json=_MULTI_TURN_PAYLOAD
+        )
 
     assert response.status_code == 200
     assert response.json()["job_id"] == "multi-job-uuid"
@@ -213,7 +219,7 @@ def test_v1_get_job_returns_404_when_not_found(app_client):
         response = client.get("/api/v1/jobs/nonexistent-job")
 
     assert response.status_code == 404
-    assert "not found" in response.json()["detail"].lower()
+    assert "not found" in response.json()["error"]["detail"].lower()
 
 
 def test_v1_get_job_pending_has_null_result(app_client):
@@ -230,7 +236,9 @@ def test_v1_get_job_pending_has_null_result(app_client):
         "completed_at": None,
     }
 
-    with patch("app.api.v1.jobs_router.get_job", new=AsyncMock(return_value=pending_job)):
+    with patch(
+        "app.api.v1.jobs_router.get_job", new=AsyncMock(return_value=pending_job)
+    ):
         response = client.get("/api/v1/jobs/pending-job")
 
     assert response.status_code == 200

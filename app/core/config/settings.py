@@ -114,6 +114,11 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7, ge=1)
     JWT_CONFIRMATION_TOKEN_EXPIRE_MINUTES: int = Field(default=10, ge=1)
 
+    # Admin credentials (for initial setup)
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: SecretStr = SecretStr("admin")
+    DEFAULT_TENANT_ID: str = "default"
+
     # LLM Providers
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""

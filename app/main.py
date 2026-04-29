@@ -3,10 +3,12 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
+from app.api.routers.admin_router import router as admin_router
+from app.api.routers.auth_router import router as auth_router
 from app.api.routers.eval_router import router as eval_router
 from app.api.routers.health_router import router as health_router
 from app.api.v1.eval_router import router as v1_eval_router
@@ -20,7 +22,16 @@ from app.core.config.observability import (
     setup_observability,
 )
 from app.core.config.settings import Settings, get_settings
-from fastapi.middleware.cors import CORSMiddleware
+from app.core.middleware import (
+    AuditMiddleware,
+    AuthMiddleware,
+    CorrelationIdMiddleware,
+    ErrorMiddleware,
+    LatencyTrackingMiddleware,
+    RateLimitMiddleware,
+    RequestIdMiddleware,
+    TenantMiddleware,
+)
 
 setup_logging()
 setup_observability()
@@ -52,12 +63,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         publisher = KafkaPublisher(bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS)
         await publisher.start()
         app.state.kafka_publisher = publisher
-        logger.info(
-            "app.kafka.ready bootstrap=%s", settings.KAFKA_BOOTSTRAP_SERVERS
-        )
+        logger.info("app.kafka.ready bootstrap=%s", settings.KAFKA_BOOTSTRAP_SERVERS)
     else:
         app.state.kafka_publisher = None
-        logger.info("app.kafka.disabled (set KAFKA_ENABLED=true to enable v2 endpoints)")
+        logger.info(
+            "app.kafka.disabled (set KAFKA_ENABLED=true to enable v2 endpoints)"
+        )
 
     try:
         yield
@@ -71,7 +82,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def add_middlewares(app: FastAPI, settings: Settings) -> None:
-    """Add middlewares."""
+    """Add middlewares.
+
+    Middleware runs in reverse order (last added runs first).
+    Order: Error -> Audit -> Latency -> RateLimit -> Tenant -> Auth -> Logging/CORS -> CorrelationId
+    """
+    # CORS must be early to handle preflight requests
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -82,6 +98,7 @@ def add_middlewares(app: FastAPI, settings: Settings) -> None:
             "Content-Type",
             "X-Request-ID",
             "X-Correlation-ID",
+            "X-Tenant-ID",
             "traceparent",
             "tracestate",
         ],
@@ -89,6 +106,9 @@ def add_middlewares(app: FastAPI, settings: Settings) -> None:
             "X-Request-ID",
             "X-Correlation-ID",
             "X-Process-Time-Ms",
+            "X-Tenant-ID",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
             "traceparent",
         ],
         max_age=600,
@@ -98,12 +118,36 @@ def add_middlewares(app: FastAPI, settings: Settings) -> None:
     app.add_middleware(LoggingContextMiddleware)
     app.add_middleware(CorrelationTracingMiddleware)
 
-    # Important: Starlette middleware runs in reverse order.
-    # Add CorrelationIdMiddleware LAST, thus it runs FIRST.
+    # Request/Response middleware (runs in reverse order of addition)
+    # Error handling (outermost - catches all errors)
+    app.add_middleware(ErrorMiddleware, include_details=not settings.is_production)
+
+    # Audit logging for state-changing operations
+    app.add_middleware(AuditMiddleware)
+
+    # Latency tracking
+    app.add_middleware(LatencyTrackingMiddleware, slow_threshold_ms=1000.0)
+
+    # Rate limiting
+    if settings.RATE_LIMIT_ENABLED:
+        app.add_middleware(
+            RateLimitMiddleware,
+            requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,
+        )
+
+    # Tenant resolution
+    app.add_middleware(TenantMiddleware, default_tenant="default")
+
+    # Auth extraction (runs early to set user context)
+    app.add_middleware(AuthMiddleware)
+
+    # Request ID generation (runs early)
+    app.add_middleware(RequestIdMiddleware)
+
+    # Correlation ID propagation (runs first - outermost)
     app.add_middleware(
         CorrelationIdMiddleware,
-        header_name="X-Request-ID",
-        update_request_header=True,
+        header_name="X-Correlation-ID",
     )
 
 
@@ -113,6 +157,12 @@ def include_routers(app: FastAPI, settings: Settings) -> None:
     # --- Legacy (no version prefix — backward compat) ---
     app.include_router(health_router, prefix=api_prefix)
     app.include_router(eval_router, prefix=api_prefix)
+
+    # --- Authentication (available on all versions) ---
+    app.include_router(auth_router, prefix=api_prefix)
+
+    # --- Admin (protected endpoints) ---
+    app.include_router(admin_router, prefix=f"{api_prefix}")
 
     # --- v1: single service + Redis + Celery (1K RPM) ---
     app.include_router(v1_eval_router, prefix=f"{api_prefix}/v1")

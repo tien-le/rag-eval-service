@@ -10,7 +10,6 @@ The Kafka publisher is always mocked — no real Kafka broker required.
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -68,7 +67,7 @@ def test_v2_single_turn_503_when_kafka_disabled(v2_client_no_kafka):
         "/api/v2/eval/ragas/single-turn", json=_SINGLE_TURN_PAYLOAD
     )
     assert response.status_code == 503
-    assert "kafka" in response.json()["detail"].lower()
+    assert "kafka" in response.json()["error"]["detail"].lower()
 
 
 def test_v2_multi_turn_503_when_kafka_disabled(v2_client_no_kafka):
@@ -89,7 +88,9 @@ def test_v2_single_turn_returns_job_id(v2_client_with_kafka):
     with patch(
         "app.api.v2.eval_router.create_job", new=AsyncMock(return_value="v2-job-uuid")
     ):
-        response = client.post("/api/v2/eval/ragas/single-turn", json=_SINGLE_TURN_PAYLOAD)
+        response = client.post(
+            "/api/v2/eval/ragas/single-turn", json=_SINGLE_TURN_PAYLOAD
+        )
 
     assert response.status_code == 200
     body = response.json()
@@ -116,9 +117,7 @@ def test_v2_single_turn_publishes_to_kafka(v2_client_with_kafka):
 def test_v2_single_turn_kafka_payload_has_event_fields(v2_client_with_kafka):
     client, mock_publisher = v2_client_with_kafka
 
-    with patch(
-        "app.api.v2.eval_router.create_job", new=AsyncMock(return_value="j")
-    ):
+    with patch("app.api.v2.eval_router.create_job", new=AsyncMock(return_value="j")):
         client.post("/api/v2/eval/ragas/single-turn", json=_SINGLE_TURN_PAYLOAD)
 
     _, payload = mock_publisher.publish.call_args.args
@@ -132,7 +131,9 @@ def test_v2_multi_turn_returns_job_id(v2_client_with_kafka):
     with patch(
         "app.api.v2.eval_router.create_job", new=AsyncMock(return_value="v2-multi-uuid")
     ):
-        response = client.post("/api/v2/eval/ragas/multi-turn", json=_MULTI_TURN_PAYLOAD)
+        response = client.post(
+            "/api/v2/eval/ragas/multi-turn", json=_MULTI_TURN_PAYLOAD
+        )
 
     assert response.status_code == 200
     assert response.json()["job_id"] == "v2-multi-uuid"
