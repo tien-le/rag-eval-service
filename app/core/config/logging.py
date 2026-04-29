@@ -1,3 +1,7 @@
+"""logs: Application logging configuration."""
+
+from __future__ import annotations
+
 import logging
 import logging.config
 import sys
@@ -14,7 +18,25 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config.settings import get_settings
 from app.core.security import redact_sensitive_data
 
-logger = structlog.get_logger(__name__)
+
+def get_trace_context() -> tuple[str | None, str | None]:
+    """Return current OpenTelemetry trace_id and span_id, if available."""
+    try:
+        from opentelemetry import trace
+        from opentelemetry.trace import INVALID_SPAN_CONTEXT
+    except ImportError:
+        return None, None
+
+    span = trace.get_current_span()
+    ctx = span.get_span_context()
+
+    if ctx == INVALID_SPAN_CONTEXT:
+        return None, None
+
+    trace_id = format(ctx.trace_id, "032x") if ctx.trace_id else None
+    span_id = format(ctx.span_id, "016x") if ctx.span_id else None
+
+    return trace_id, span_id
 
 
 class LoggingContextMiddleware(BaseHTTPMiddleware):
@@ -23,52 +45,66 @@ class LoggingContextMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        start_time = time.perf_counter()
+        settings = get_settings()
+        started = time.perf_counter()
 
         request_id = correlation_id.get()
+        trace_id, span_id = get_trace_context()
 
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
+            service=settings.APP_NAME,
+            environment=str(settings.ENVIRONMENT),
             correlation_id=request_id,
+            trace_id=trace_id,
+            span_id=span_id,
             method=request.method,
             path=request.url.path,
+            query=str(request.query_params) or None,
             client_ip=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
         )
+
+        logger = get_logger(__name__)
 
         try:
             response = await call_next(request)
+            duration_ms = round((time.perf_counter() - started) * 1000, 2)
 
-        except Exception:
-            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            if request_id:
+                response.headers["X-Request-ID"] = request_id
+                response.headers["X-Correlation-ID"] = request_id
+
+            response.headers["X-Process-Time-Ms"] = str(duration_ms)
+
+            logger.info(
+                "request_completed",
+                status_code=response.status_code,
+                status_class=f"{response.status_code // 100}xx",
+                duration_ms=duration_ms,
+                content_type=response.headers.get("content-type"),
+            )
+
+            return response
+
+        except Exception as exc:
+            duration_ms = round((time.perf_counter() - started) * 1000, 2)
 
             logger.exception(
                 "request_failed",
                 duration_ms=duration_ms,
+                error_type=type(exc).__name__,
             )
             raise
 
-        duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
-
-        if request_id:
-            response.headers["X-Request-ID"] = request_id
-            response.headers["X-Correlation-ID"] = request_id
-
-        response.headers["X-Process-Time-Ms"] = str(duration_ms)
-
-        logger.info(
-            "request_completed",
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-        )
-        structlog.contextvars.clear_contextvars()
-        return response
+        finally:
+            structlog.contextvars.clear_contextvars()
 
 
 def setup_logging() -> None:
     settings = get_settings()
 
     log_level = settings.LOG_LEVEL.upper()
-    is_local = settings.is_development or settings.is_testing
 
     log_dir = Path("var/logs")
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -83,11 +119,12 @@ def setup_logging() -> None:
         structlog.processors.format_exc_info,
     ]
 
-    renderer = (
-        structlog.dev.ConsoleRenderer(colors=True)
-        if is_local
-        else structlog.processors.JSONRenderer()
-    )
+    is_local = settings.is_development or settings.is_testing
+    log_format = settings.LOG_FORMAT.lower()
+    if log_format == "json":
+        renderer = structlog.processors.JSONRenderer()
+    else:
+        renderer = structlog.dev.ConsoleRenderer(colors=is_local)
 
     structlog.configure(
         processors=[
@@ -136,11 +173,7 @@ def setup_logging() -> None:
             },
             "handlers": handlers,
             "loggers": {
-                "": {
-                    "handlers": root_handlers,
-                    "level": log_level,
-                    "propagate": False,
-                },
+                "": {"handlers": root_handlers, "level": log_level, "propagate": False},
                 "app": {
                     "handlers": root_handlers,
                     "level": log_level,
@@ -172,6 +205,16 @@ def setup_logging() -> None:
                     "propagate": False,
                 },
                 "httpcore": {
+                    "handlers": root_handlers,
+                    "level": "WARNING",
+                    "propagate": False,
+                },
+                "urllib3": {
+                    "handlers": root_handlers,
+                    "level": "WARNING",
+                    "propagate": False,
+                },
+                "langsmith": {
                     "handlers": root_handlers,
                     "level": "WARNING",
                     "propagate": False,
