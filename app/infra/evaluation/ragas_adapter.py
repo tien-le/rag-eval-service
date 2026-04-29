@@ -10,6 +10,30 @@ from app.core.config.exceptions import ExternalServiceError
 from app.core.config.metric_catalog import METRIC_CATALOG
 
 
+class LangChainEmbeddingsAdapter:
+    """Adapter to make LangChain embeddings compatible with older Ragas versions.
+
+    Ragas 0.4.x expects embed_query() method, but LangChain 1.x uses embed_text().
+    This wrapper adds the legacy method for backward compatibility.
+    """
+
+    def __init__(self, embeddings: Any) -> None:
+        self._embeddings = embeddings
+
+    def embed_query(self, text: str) -> list[float]:
+        """Legacy method for Ragas compatibility."""
+        # Try embed_text first (LangChain 1.x), fallback to embed_query
+        if hasattr(self._embeddings, "embed_text"):
+            return self._embeddings.embed_text(text)
+        return self._embeddings.embed_query(text)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Legacy method for Ragas compatibility."""
+        if hasattr(self._embeddings, "embed_text"):
+            return self._embeddings.embed_text(texts)
+        return self._embeddings.embed_documents(texts)
+
+
 class RagasAdapter:
     """Best-effort adapter around ragas imports and execution."""
 
@@ -183,7 +207,10 @@ class RagasAdapter:
                     raise ValueError(
                         f"Metric '{metric_name}' requires constructor argument: embeddings"
                     )
-                constructor_kwargs["embeddings"] = embeddings
+                # Wrap embeddings to provide embed_query for Ragas 0.4.x compatibility
+                constructor_kwargs["embeddings"] = LangChainEmbeddingsAdapter(
+                    embeddings
+                )
 
             metric = (
                 metric_builder(**constructor_kwargs)
@@ -207,7 +234,7 @@ class RagasAdapter:
             dataset=dataset,
             metrics=metrics,
             llm=llm,
-            embeddings=embeddings,
+            embeddings=LangChainEmbeddingsAdapter(embeddings) if embeddings is not None else None,
             raise_exceptions=True,
             show_progress=False,
         )
