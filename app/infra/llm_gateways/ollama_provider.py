@@ -1,26 +1,32 @@
 import httpx
+from openai import AsyncOpenAI
+from ragas.embeddings.base import embedding_factory
+from ragas.llms import llm_factory
 
 from app.core.config.exceptions import EmbeddingServiceError
 
-# https://github.com/langchain-ai/langchain/blob/master/libs/partners/openai/langchain_openai/embeddings/base.py
+
+OLLAMA_URL = "http://localhost:11434"
+OLLAMA_OPENAI_URL = f"{OLLAMA_URL}/v1"
+EVALUATOR_MODEL = "qwen2.5:latest"
+EVALUATOR_EMBEDDING_MODEL = "nomic-embed-text:latest"
 
 
 class OllamaEmbedding:
     def __init__(
         self,
-        url: str = "http://localhost:11434",
-        model: str = "nomic-embed-text:latest",
+        url: str = OLLAMA_URL,
+        model: str = EVALUATOR_EMBEDDING_MODEL,
     ):
-        self.url = url
+        self.url = url.rstrip("/")
         self.model = model
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{self.url}/api/embed",
                     json={"model": self.model, "input": texts},
-                    timeout=120.0,
                 )
                 response.raise_for_status()
                 return response.json()["embeddings"]
@@ -30,3 +36,22 @@ class OllamaEmbedding:
     async def embed_query(self, text: str) -> list[float]:
         results = await self.embed_documents([text])
         return results[0]
+
+
+client = AsyncOpenAI(
+    api_key="ollama",
+    base_url=OLLAMA_OPENAI_URL,
+)
+
+evaluator_model = llm_factory(
+    EVALUATOR_MODEL,
+    provider="openai",
+    client=client,
+)
+
+evaluator_embeddings = embedding_factory(
+    "openai",
+    model=EVALUATOR_EMBEDDING_MODEL,
+    client=client,
+    interface="modern",
+)

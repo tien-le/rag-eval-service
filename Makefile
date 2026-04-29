@@ -1,4 +1,4 @@
-.PHONY: help install set-env dev staging prod test test-unit test-integration test-e2e test-acceptance lint format type-check check all init-db clean docker-build docker-build-env docker-run docker-run-env docker-logs docker-stop docker-compose-up docker-compose-down docker-compose-logs migrate migrate-upgrade migrate-downgrade migrate-revision migrate-history migrate-current
+.PHONY: help install set-env dev staging prod test test-unit test-integration test-e2e test-acceptance test-eval lint format type-check check all init-db clean docker-build docker-build-env docker-run docker-run-env docker-logs docker-stop docker-compose-up docker-compose-down docker-compose-logs migrate migrate-upgrade migrate-downgrade migrate-revision migrate-history migrate-current eval-metrics-catalog eval-classification-example eval-ragas-example
 
 # Variables
 DOCKER_COMPOSE ?= docker compose
@@ -50,6 +50,10 @@ test:
 test-unit:
 	@echo "Running unit tests"
 	@APP_ENV=test $(UV) run pytest tests/unit -v
+
+test-eval:
+	@echo "Running evaluation-focused unit tests"
+	@APP_ENV=test $(UV) run pytest tests/unit/test_evaluation_metrics.py tests/unit/test_evaluation_service.py tests/unit/test_evaluate_use_case.py tests/unit/test_ragas_evaluator.py -v
 
 # --no-cov : disables coverage checking for the integration tests,
 # preventing failures when coverage is below 80%
@@ -295,6 +299,23 @@ docker-compose-restart:
 	echo "Restarting Docker Compose stack for $(ENV) environment"; \
 	APP_ENV=$(ENV) $(DOCKER_COMPOSE) --env-file $$ENV_FILE restart
 
+# Evaluation API examples
+eval-metrics-catalog:
+	@echo "Calling metric catalog endpoint"
+	@curl -s http://localhost:8000/api/eval/metrics | jq
+
+eval-classification-example:
+	@echo "Calling classification evaluation endpoint"
+	@curl -s -X POST http://localhost:8000/api/eval/classification \
+		-H "Content-Type: application/json" \
+		-d '{"actual":["positive","negative","positive","negative"],"predicted":["positive","positive","positive","negative"],"positive_label":"positive"}' | jq
+
+eval-ragas-example:
+	@echo "Calling ragas single-turn evaluation endpoint"
+	@curl -s -X POST http://localhost:8000/api/eval/ragas/single-turn \
+		-H "Content-Type: application/json" \
+		-d '{"user_input":"Who built the Eiffel Tower?","response":"The Eiffel Tower was built by Gustave Eiffel.","retrieved_contexts":["The Eiffel Tower was designed by Gustave Eiffel''s company."],"reference":"The Eiffel Tower was built by Gustave Eiffel''s company.","metric_names":["faithfulness","answer_relevancy","context_precision"]}' | jq
+
 # Help
 help:
 	@echo "Retrieval Augmented Generation (RAG) Evaluation Server - Makefile Commands"
@@ -315,6 +336,7 @@ help:
 	@echo "Testing:"
 	@echo "  test                       Run all tests"
 	@echo "  test-unit                  Run unit tests only"
+	@echo "  test-eval                  Run evaluation-focused unit tests"
 	@echo "  test-integration           Run integration tests only"
 	@echo "  test-e2e                   Run end-to-end tests only"
 	@echo "  test-acceptance            Run acceptance tests only"
@@ -350,6 +372,11 @@ help:
 	@echo "  docker-compose-down ENV=<env>   Stop entire stack"
 	@echo "  docker-compose-logs ENV=<env>   View logs from all services"
 	@echo "  docker-compose-restart ENV=<env> Restart entire stack"
+	@echo ""
+	@echo "Evaluation API Examples:"
+	@echo "  eval-metrics-catalog       Call GET /api/eval/metrics"
+	@echo "  eval-classification-example Call POST /api/eval/classification"
+	@echo "  eval-ragas-example         Call POST /api/eval/ragas/single-turn"
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  clean                      Remove generated files (venv, cache, coverage)"

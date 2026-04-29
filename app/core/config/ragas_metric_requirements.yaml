@@ -1,0 +1,27 @@
+version: 1
+
+# Seeded from metric construction patterns documented in notebooks/rag_eval_ragas.ipynb.
+metrics:
+  context_precision:
+    constructor_args: [llm]
+  context_utilization:
+    constructor_args: [llm]
+  context_recall:
+    constructor_args: [llm]
+  context_entity_recall:
+    constructor_args: [llm]
+  noise_sensitivity:
+    constructor_args: [llm]
+  answer_relevancy:
+    constructor_args: [llm, embeddings]
+  faithfulness:
+    constructor_args: [llm]
+
+  non_llm_context_precision:
+    constructor_args: []
+  id_based_context_precision:
+    constructor_args: []
+  non_llm_context_recall:
+    constructor_args: []
+  id_based_context_recall:
+    constructor_args: []

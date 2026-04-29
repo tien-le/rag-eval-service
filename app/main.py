@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
+from app.api.routers.eval_router import router as eval_router
 from app.api.routers.health_router import router as health_router
 from app.core.config.exceptions import register_exception_handlers
 from app.core.config.logging import LoggingContextMiddleware, get_logger, setup_logging
@@ -92,6 +93,7 @@ def include_routers(app: FastAPI, settings: Settings) -> None:
     api_prefix = getattr(settings, "API_PREFIX", "/api")
 
     app.include_router(health_router, prefix=api_prefix)
+    app.include_router(eval_router, prefix=api_prefix)
 
     # app.include_router(auth_router, prefix=api_prefix)
     # app.include_router(user_router, prefix=api_prefix)
