@@ -1,6 +1,19 @@
 """Pydantic schemas for evaluation APIs."""
 
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
+
+
+class ToolCallSchema(BaseModel):
+    name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConversationMessage(BaseModel):
+    role: Literal["human", "ai", "tool"]
+    content: str
+    tool_calls: list[ToolCallSchema] | None = None
 
 
 class ClassificationMetricsRequest(BaseModel):
@@ -27,6 +40,18 @@ class RagasSingleTurnRequest(BaseModel):
 
 
 class RagasSingleTurnResponse(BaseModel):
+    scores: dict[str, float]
+
+
+class RagasMultiTurnRequest(BaseModel):
+    messages: list[ConversationMessage] = Field(min_length=1)
+    reference: str | None = None
+    reference_topics: list[str] | None = None
+    reference_tool_calls: list[ToolCallSchema] | None = None
+    metric_names: list[str] = Field(min_length=1)
+
+
+class RagasMultiTurnResponse(BaseModel):
     scores: dict[str, float]
 
 

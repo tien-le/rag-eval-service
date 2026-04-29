@@ -6,6 +6,8 @@ from app.api.schemas.evaluation import (
     ClassificationMetricsRequest,
     ClassificationMetricsResponse,
     MetricCatalogResponse,
+    RagasMultiTurnRequest,
+    RagasMultiTurnResponse,
     RagasSingleTurnRequest,
     RagasSingleTurnResponse,
 )
@@ -62,3 +64,22 @@ async def evaluate_ragas_single_turn(
         metric_names=payload.metric_names,
     )
     return RagasSingleTurnResponse(**result)
+
+
+@router.post("/ragas/multi-turn", response_model=RagasMultiTurnResponse)
+async def evaluate_ragas_multi_turn(
+    payload: RagasMultiTurnRequest,
+    service: EvaluationService = Depends(_get_evaluation_service),
+) -> RagasMultiTurnResponse:
+    result = await service.evaluate_ragas_multi_turn(
+        messages=[m.model_dump() for m in payload.messages],
+        reference=payload.reference,
+        reference_topics=payload.reference_topics,
+        reference_tool_calls=(
+            [tc.model_dump() for tc in payload.reference_tool_calls]
+            if payload.reference_tool_calls is not None
+            else None
+        ),
+        metric_names=payload.metric_names,
+    )
+    return RagasMultiTurnResponse(**result)

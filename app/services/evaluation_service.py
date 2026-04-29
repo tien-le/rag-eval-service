@@ -129,3 +129,26 @@ class EvaluationService(EvaluatorPort):
             },
         )
         return {"scores": scores}
+
+    async def evaluate_ragas_multi_turn(
+        self,
+        *,
+        messages: list[dict],
+        reference: str | None = None,
+        reference_topics: list[str] | None = None,
+        reference_tool_calls: list[dict] | None = None,
+        metric_names: list[str],
+    ) -> dict:
+        scores = await self._ragas_adapter.run_multi_turn(
+            messages=messages,
+            reference=reference,
+            reference_topics=reference_topics,
+            reference_tool_calls=reference_tool_calls,
+            metric_names=metric_names,
+            llm=self._evaluator_llm,
+        )
+        self._event_bus.publish(
+            "evaluation.ragas.multi_turn.completed",
+            {"metrics": metric_names, "score_count": len(scores)},
+        )
+        return {"scores": scores}

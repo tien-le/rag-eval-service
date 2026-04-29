@@ -42,6 +42,16 @@ class RagasAdapter:
         for m in METRIC_CATALOG
         if m.category in {"retrieval", "generation", "robustness", "agent"}
     }
+    # These metrics require MultiTurnSample or a different ascore API (conversation
+    # messages + reference_topics) and cannot be evaluated via the single-turn endpoint.
+    MULTI_TURN_ONLY_METRICS = frozenset(
+        {
+            "topic_adherence",
+            "tool_call_accuracy",
+            "tool_call_f1",
+            "agent_goal_accuracy",
+        }
+    )
     _SUPPORTED_CONSTRUCTOR_ARGS = ("llm", "embeddings")
 
     @classmethod
@@ -120,6 +130,15 @@ class RagasAdapter:
         ]
         if unsupported:
             raise ValueError(f"Unsupported ragas metrics: {unsupported}")
+
+        multi_turn_requested = [
+            m for m in metric_names if m in self.MULTI_TURN_ONLY_METRICS
+        ]
+        if multi_turn_requested:
+            raise ValueError(
+                f"Metrics {multi_turn_requested} require multi-turn conversation data "
+                "and cannot be evaluated via the single-turn endpoint."
+            )
 
         try:
             from datasets import Dataset
@@ -246,3 +265,99 @@ class RagasAdapter:
             for metric_name in metric_names
             if metric_name in row and row[metric_name] is not None
         }
+
+    async def run_multi_turn(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        reference: str | None,
+        reference_topics: list[str] | None,
+        reference_tool_calls: list[dict[str, Any]] | None,
+        metric_names: Sequence[str],
+        llm: Any | None = None,
+    ) -> dict[str, Any]:
+        unsupported = [
+            m for m in metric_names if m not in self.MULTI_TURN_ONLY_METRICS
+        ]
+        if unsupported:
+            raise ValueError(
+                f"Metrics {unsupported} are not supported by the multi-turn endpoint. "
+                f"Supported: {sorted(self.MULTI_TURN_ONLY_METRICS)}"
+            )
+
+        try:
+            from ragas.messages import AIMessage, HumanMessage, ToolCall, ToolMessage
+            from ragas.metrics.collections import (
+                AgentGoalAccuracyWithReference,
+                ToolCallAccuracy,
+                ToolCallF1,
+                TopicAdherence,
+            )
+        except Exception as exc:
+            raise ExternalServiceError(
+                "ragas", f"ragas is not available: {exc}"
+            ) from exc
+
+        ragas_messages: list[Any] = []
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            raw_tool_calls = msg.get("tool_calls") or []
+            if role == "human":
+                ragas_messages.append(HumanMessage(content=content))
+            elif role == "ai":
+                tc_list = (
+                    [ToolCall(name=tc["name"], args=tc["args"]) for tc in raw_tool_calls]
+                    if raw_tool_calls
+                    else None
+                )
+                ragas_messages.append(AIMessage(content=content, tool_calls=tc_list))
+            elif role == "tool":
+                ragas_messages.append(ToolMessage(content=content))
+
+        ref_tool_calls: list[Any] | None = None
+        if reference_tool_calls is not None:
+            ref_tool_calls = [
+                ToolCall(name=tc["name"], args=tc["args"])
+                for tc in reference_tool_calls
+            ]
+
+        scores: dict[str, Any] = {}
+
+        for metric_name in metric_names:
+            if metric_name == "topic_adherence":
+                if not reference_topics:
+                    raise ValueError("topic_adherence requires reference_topics")
+                if llm is None:
+                    raise ValueError("topic_adherence requires llm")
+                result = await TopicAdherence(llm=llm).ascore(
+                    user_input=ragas_messages,
+                    reference_topics=reference_topics,
+                )
+            elif metric_name == "agent_goal_accuracy":
+                if not reference:
+                    raise ValueError("agent_goal_accuracy requires reference")
+                if llm is None:
+                    raise ValueError("agent_goal_accuracy requires llm")
+                result = await AgentGoalAccuracyWithReference(llm=llm).ascore(
+                    user_input=ragas_messages,
+                    reference=reference,
+                )
+            elif metric_name == "tool_call_accuracy":
+                if ref_tool_calls is None:
+                    raise ValueError("tool_call_accuracy requires reference_tool_calls")
+                result = await ToolCallAccuracy().ascore(
+                    user_input=ragas_messages,
+                    reference_tool_calls=ref_tool_calls,
+                )
+            elif metric_name == "tool_call_f1":
+                if ref_tool_calls is None:
+                    raise ValueError("tool_call_f1 requires reference_tool_calls")
+                result = await ToolCallF1().ascore(
+                    user_input=ragas_messages,
+                    reference_tool_calls=ref_tool_calls,
+                )
+
+            scores[metric_name] = float(result.value)
+
+        return scores
